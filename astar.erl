@@ -2,14 +2,13 @@
 
 -export([a_star/3, test_a_star/0]).
 
-%% A* reference: https://en.wikipedia.org/wiki/A*_search_algorithm
-
 test_a_star() ->
     %% A/0->B/1->D/2->E/3=6
     %% A/0->C/2->E/2=4 (optimal)
     Data = [{"A", "B", 1}, {"A", "C", 2}, {"B", "D", 2}, {"C", "E", 2}, {"D", "E", 3}],
     a_star("A", "E", Data).
 
+%% A* reference: https://en.wikipedia.org/wiki/A*_search_algorithm
 a_star(Start, Goal, Data) ->
     %% Discovered nodes that have been evaluated.
     ClosedSet = sets:new(),
@@ -22,6 +21,8 @@ a_star(Start, Goal, Data) ->
     BestPaths3 = a_star_iterate_open_set(ClosedSet, OpenSet, BestPaths2, Goal, Data),
     a_star_reconstruct_best_path(Start, Goal, BestPaths3).
 
+%% Evaluates the open set of nodes until either the goal is found or there are
+%% no more nodes to visit.
 a_star_iterate_open_set(_, [], BestPaths, _, _) ->
     BestPaths;
 a_star_iterate_open_set(ClosedSet, [Current | OpenSet], BestPaths, Goal, Data) ->
@@ -36,12 +37,14 @@ a_star_iterate_open_set(ClosedSet, [Current | OpenSet], BestPaths, Goal, Data) -
             ClosedSet2 = sets:add_element(CurrentNode, ClosedSet),
             Neighbors = [{Start, End, Cost} || {Start, End, Cost} <- Data, Start =:= CurrentNode],
             io:format("Neighbors: ~p~n", [Neighbors]),
-            {OpenSet2, BestPaths2} = a_star_add_node_neighbors(ClosedSet, OpenSet, BestPaths, Neighbors),
+            {OpenSet2, BestPaths2} = a_star_iterate_node_neighbors(ClosedSet, OpenSet, BestPaths, Neighbors),
             OpenSet3 = lists:sort(fun({NodeA, CostA}, {NodeB, CostB}) -> (CostA < CostB) and (NodeA < NodeB) end, OpenSet2),
             io:format("New OpenSet: ~p~n", [OpenSet3]),
             a_star_iterate_open_set(ClosedSet2, OpenSet3, BestPaths2, Goal, Data)
     end.
 
+%% Gets an array of nodes representing the best path from start to goal.
+%% [Paths] is a map of node->best previous node.
 a_star_reconstruct_best_path(Start, Goal, Paths) ->
     a_star_reconstruct_best_path([], Start, Goal, Paths).
 
@@ -56,15 +59,17 @@ a_star_reconstruct_best_path(BestPath, Start, Goal, Paths) ->
             a_star_reconstruct_best_path([Goal | BestPath], Start, PreviousNode, Paths)
     end.
 
-a_star_add_node_neighbors(_, OpenSet, BestPaths, []) ->
+%% Evalutes the neighbors of a node, adding unvisited nodes to the open set
+%% and updating the current best path for each neighbor.
+a_star_iterate_node_neighbors(_, OpenSet, BestPaths, []) ->
     {OpenSet, BestPaths};
-a_star_add_node_neighbors(ClosedSet, OpenSet, BestPaths, [H | T]) ->
+a_star_iterate_node_neighbors(ClosedSet, OpenSet, BestPaths, [H | T]) ->
     {From, To, Cost} = H,
     {_, FromBestScore} = maps:get(From, BestPaths),
     case sets:is_element(To, ClosedSet) of
         %% Node already visited: continue.
         true ->
-            a_star_add_node_neighbors(ClosedSet, OpenSet, BestPaths, T);
+            a_star_iterate_node_neighbors(ClosedSet, OpenSet, BestPaths, T);
         false ->
             %% TODO: implement g(n)
             GScore = FromBestScore + Cost,
@@ -87,5 +92,5 @@ a_star_add_node_neighbors(ClosedSet, OpenSet, BestPaths, [H | T]) ->
                     BestPaths2 = maps:put(To, {From, GScore}, BestPaths) %% current best path
             end,
             %% TODO: implement h(n)
-            a_star_add_node_neighbors(ClosedSet, OpenSet2, BestPaths2, T)
+            a_star_iterate_node_neighbors(ClosedSet, OpenSet2, BestPaths2, T)
     end.
